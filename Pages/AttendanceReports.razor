@@ -4,6 +4,8 @@
 @using Microsoft.AspNetCore.Components.Forms
 @inject IAttendanceTrackingService AttendanceService
 @inject ISessionTrackingService SessionTracker
+@inject IApplicationLogger Logger
+@inject IConfigurationService ConfigService
 
 <PageTitle>Attendance Reports - EventEase</PageTitle>
 
@@ -60,6 +62,26 @@
                         <span class="visually-hidden">Generating report...</span>
                     </div>
                     <div class="mt-3">Generating attendance report...</div>
+                </div>
+            }
+            else if (hasError)
+            {
+                <div class="alert alert-danger" role="alert">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Error:</strong>
+                        <span class="ms-2">@errorMessage</span>
+                    </div>
+                    <div class="mt-3">
+                        <button class="btn btn-outline-danger btn-sm me-2" @onclick="ClearError">
+                            <i class="fas fa-times me-1"></i>
+                            Dismiss
+                        </button>
+                        <button class="btn btn-primary btn-sm" @onclick="RefreshReport">
+                            <i class="fas fa-redo me-1"></i>
+                            Try Again
+                        </button>
+                    </div>
                 </div>
             }
             else if (report != null)
@@ -279,40 +301,104 @@
     private DateTime startDate = DateTime.Today.AddDays(-30);
     private DateTime endDate = DateTime.Today;
     private bool isLoading = false;
+    private string? errorMessage;
+    private bool hasError = false;
 
     protected override async Task OnInitializedAsync()
     {
-        await SessionTracker.TrackPageViewAsync("Attendance-Reports");
-        await GenerateReport();
+        try
+        {
+            await SessionTracker.TrackPageViewAsync("Attendance-Reports");
+            await Logger.LogUserActionAsync("AttendanceReports.PageVisit", $"User accessed reports page");
+            await GenerateReport();
+        }
+        catch (Exception ex)
+        {
+            await Logger.LogErrorAsync(ex, "Error initializing AttendanceReports page");
+            await HandleError(ex, "Failed to initialize reports page");
+        }
     }
 
     private async Task GenerateReport()
     {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         isLoading = true;
+        hasError = false;
+        errorMessage = null;
         
         try
         {
+            await Logger.LogInformationAsync("Generating attendance report for period: {StartDate} to {EndDate}", 
+                startDate.ToString("yyyy-MM-dd"), endDate.ToString("yyyy-MM-dd"));
+
             var dateRange = new DateRange
             {
                 StartDate = startDate,
                 EndDate = endDate.AddDays(1).AddTicks(-1) // Include the entire end date
             };
             
+            // Validate date range
+            if (startDate > endDate)
+            {
+                throw new ArgumentException("Start date cannot be after end date");
+            }
+
+            var maxRetentionDays = await ConfigService.GetIntegerSettingAsync("Features:ReportRetentionDays", 365);
+            if ((endDate - startDate).TotalDays > maxRetentionDays)
+            {
+                throw new ArgumentException($"Date range cannot exceed {maxRetentionDays} days");
+            }
+            
             report = await AttendanceService.GenerateAttendanceReportAsync(dateRange);
+            
+            stopwatch.Stop();
+            await Logger.LogPerformanceAsync("AttendanceReport.Generation", stopwatch.Elapsed, 
+                new Dictionary<string, object>
+                {
+                    { "DateRangeDays", (endDate - startDate).TotalDays },
+                    { "TotalEvents", report?.TotalEvents ?? 0 },
+                    { "TotalAttendees", report?.TotalAttendees ?? 0 }
+                });
+
+            await Logger.LogUserActionAsync("AttendanceReports.Generated", 
+                $"Report generated successfully with {report?.TotalEvents} events and {report?.TotalAttendees} attendees");
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            report = null;
+            stopwatch.Stop();
+            await Logger.LogErrorAsync(ex, "Error generating attendance report");
+            await HandleError(ex, "Failed to generate attendance report");
         }
         finally
         {
             isLoading = false;
+            StateHasChanged();
         }
     }
 
     private async Task RefreshReport()
     {
+        await Logger.LogUserActionAsync("AttendanceReports.Refresh", "User requested report refresh");
         await GenerateReport();
+    }
+
+    private async Task HandleError(Exception exception, string userMessage)
+    {
+        hasError = true;
+        errorMessage = userMessage;
+        
+        // Log detailed error information
+        await Logger.LogErrorAsync(exception, "AttendanceReports error: {UserMessage}", userMessage);
+        
+        StateHasChanged();
+    }
+
+    private async Task ClearError()
+    {
+        hasError = false;
+        errorMessage = null;
+        await Logger.LogUserActionAsync("AttendanceReports.ClearError", "User cleared error message");
+        StateHasChanged();
     }
 
     private string GetAttendanceRateBadgeColor(double rate)
