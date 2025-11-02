@@ -25,7 +25,7 @@
                         <i class="fas fa-sync-alt me-2"></i>
                         Refresh
                     </button>
-                    <button class="btn btn-success" @onclick="() => ShowAddAttendeeModal = true">
+                    <button class="btn btn-success" @onclick="StartAddingAttendee">
                         <i class="fas fa-user-plus me-2"></i>
                         Add Attendee
                     </button>
@@ -380,7 +380,7 @@
                             <span>No attendees registered across all events.</span>
                         }
                     </p>
-                    <button class="btn btn-success" @onclick="() => ShowAddAttendeeModal = true">
+                    <button class="btn btn-success" @onclick="StartAddingAttendee">
                         <i class="fas fa-user-plus me-2"></i>
                         Add First Attendee
                     </button>
@@ -403,15 +403,17 @@
                     <button type="button" class="btn-close" @onclick="CloseAttendeeModal"></button>
                 </div>
                 <div class="modal-body">
-                    <EditForm Model="editingAttendee" OnValidSubmit="SaveAttendee">
-                        <DataAnnotationsValidator />
-                        
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Name *</label>
-                                <InputText @bind-Value="editingAttendee!.Name" class="form-control" />
-                                <ValidationMessage For="() => editingAttendee.Name" />
-                            </div>
+                    @if (editingAttendee != null)
+                    {
+                        <EditForm Model="editingAttendee" OnValidSubmit="SaveAttendee">
+                            <DataAnnotationsValidator />
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Name *</label>
+                                    <InputText @bind-Value="editingAttendee!.Name" class="form-control" />
+                                    <ValidationMessage For="() => editingAttendee.Name" />
+                                </div>
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Email *</label>
                                 <InputText @bind-Value="editingAttendee!.Email" class="form-control" />
@@ -470,7 +472,17 @@
                                 @(editingAttendee?.Id > 0 ? "Update" : "Add") Attendee
                             </button>
                         </div>
-                    </EditForm>
+                        </EditForm>
+                    }
+                    else
+                    {
+                        <div class="text-center py-3">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2">Initializing attendee form...</p>
+                        </div>
+                    }
                 </div>
             </div>
         </div>
@@ -774,11 +786,28 @@
 
     private void StartAddingAttendee()
     {
-        editingAttendee = new AttendeeRecord
+        try
         {
-            EventId = selectedEventId > 0 ? selectedEventId : (events.FirstOrDefault()?.Id ?? 0)
-        };
-        ShowAddAttendeeModal = true;
+            var eventId = selectedEventId > 0 ? selectedEventId : (events.FirstOrDefault()?.Id ?? 0);
+            
+            if (eventId == 0)
+            {
+                errorMessage = "Please select an event first or ensure events are loaded.";
+                return;
+            }
+            
+            editingAttendee = new AttendeeRecord
+            {
+                EventId = eventId,
+                RegistrationDate = DateTime.UtcNow,
+                Status = AttendanceStatus.Registered
+            };
+            ShowAddAttendeeModal = true;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error initializing attendee form: {ex.Message}";
+        }
     }
 
     private string GetStatusBadgeColor(AttendanceStatus status)
