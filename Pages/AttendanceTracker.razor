@@ -29,7 +29,7 @@
                         <i class="fas fa-user-plus me-2"></i>
                         Add Attendee
                     </button>
-                    <button class="btn btn-info" @onclick="() => ShowReportModal = true">
+                    <button class="btn btn-info" @onclick="NavigateToReports">
                         <i class="fas fa-chart-bar me-2"></i>
                         Generate Report
                     </button>
@@ -258,7 +258,6 @@
                     <div class="mt-3">Loading attendance data...</div>
                 </div>
             }
-            <!-- Error State -->
             else if (!string.IsNullOrEmpty(errorMessage))
             {
                 <div class="alert alert-danger" role="alert">
@@ -269,7 +268,6 @@
                     </button>
                 </div>
             }
-            <!-- Attendees Table -->
             else if (attendees.Any())
             {
                 <div class="card">
@@ -363,7 +361,6 @@
                     </div>
                 </div>
             }
-            <!-- No Attendees State -->
             else
             {
                 <div class="text-center py-5">
@@ -494,7 +491,6 @@
     
     private List<int> selectedAttendees = new();
     private bool ShowAddAttendeeModal = false;
-    private bool ShowReportModal = false;
     private AttendeeRecord? editingAttendee;
 
     protected override async Task OnInitializedAsync()
@@ -563,6 +559,19 @@
     {
         selectedAttendees.Clear();
         await LoadInitialData();
+    }
+
+    private async Task NavigateToReports()
+    {
+        try
+        {
+            await SessionTracker.TrackPageViewAsync("Navigate-To-Reports");
+            Navigation.NavigateTo("/attendance/reports");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Navigation error: {ex.Message}";
+        }
     }
 
     private async Task OnEventChanged(ChangeEventArgs e)
