@@ -1,0 +1,375 @@
+@page "/attendance/reports"
+@using EventEase.Models.Attendance
+@using EventEase.Services
+@using Microsoft.AspNetCore.Components.Forms
+@inject IAttendanceTrackingService AttendanceService
+@inject ISessionTrackingService SessionTracker
+
+<PageTitle>Attendance Reports - EventEase</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="display-5 fw-bold text-primary">
+                    <i class="fas fa-chart-bar me-3"></i>
+                    Attendance Reports
+                </h1>
+                
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary" @onclick="RefreshReport">
+                        <i class="fas fa-sync-alt me-2"></i>
+                        Refresh
+                    </button>
+                    <button class="btn btn-success" @onclick="GenerateReport">
+                        <i class="fas fa-file-export me-2"></i>
+                        Generate Report
+                    </button>
+                </div>
+            </div>
+
+            <!-- Date Range Selection -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Report Parameters</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label class="form-label">Start Date</label>
+                            <input type="date" class="form-control" @bind="startDate" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">End Date</label>
+                            <input type="date" class="form-control" @bind="endDate" />
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <button class="btn btn-primary w-100" @onclick="GenerateReport">
+                                <i class="fas fa-play me-2"></i>
+                                Generate Report
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @if (isLoading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Generating report...</span>
+                    </div>
+                    <div class="mt-3">Generating attendance report...</div>
+                </div>
+            }
+            else if (report != null)
+            {
+                <!-- Report Header -->
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-calendar-alt me-2"></i>
+                            Report Summary (@report.ReportPeriod.StartDate.ToString("MMM dd, yyyy") - @report.ReportPeriod.EndDate.ToString("MMM dd, yyyy"))
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-md-3">
+                                <div class="border-end">
+                                    <h3 class="text-primary mb-0">@report.TotalEvents</h3>
+                                    <small class="text-muted">Total Events</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="border-end">
+                                    <h3 class="text-success mb-0">@report.TotalAttendees</h3>
+                                    <small class="text-muted">Total Attendees</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="border-end">
+                                    <h3 class="text-info mb-0">@($"{report.OverallAttendanceRate:F1}%")</h3>
+                                    <small class="text-muted">Overall Attendance Rate</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <h3 class="text-warning mb-0">@report.TopAttendees.Count</h3>
+                                <small class="text-muted">Top Attendees</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Event Statistics -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Event Statistics</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Event Name</th>
+                                        <th class="text-center">Registered</th>
+                                        <th class="text-center">Checked In</th>
+                                        <th class="text-center">Checked Out</th>
+                                        <th class="text-center">No Shows</th>
+                                        <th class="text-center">Attendance Rate</th>
+                                        <th class="text-center">Completion Rate</th>
+                                        <th class="text-center">Avg. Stay</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var eventStat in report.EventStats.OrderByDescending(e => e.AttendanceRate))
+                                    {
+                                        <tr>
+                                            <td class="fw-bold">@eventStat.EventName</td>
+                                            <td class="text-center">@eventStat.TotalRegistered</td>
+                                            <td class="text-center text-success">@eventStat.CheckedIn</td>
+                                            <td class="text-center text-info">@eventStat.CheckedOut</td>
+                                            <td class="text-center text-danger">@eventStat.NoShows</td>
+                                            <td class="text-center">
+                                                <span class="badge bg-@GetAttendanceRateBadgeColor(eventStat.AttendanceRate)">
+                                                    @($"{eventStat.AttendanceRate:F1}%")
+                                                </span>
+                                            </td>
+                                            <td class="text-center">
+                                                <span class="badge bg-@GetCompletionRateBadgeColor(eventStat.CompletionRate)">
+                                                    @($"{eventStat.CompletionRate:F1}%")
+                                                </span>
+                                            </td>
+                                            <td class="text-center">@(eventStat.AverageStayDuration?.ToString(@"h\:mm") ?? "N/A")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analytics Charts Row -->
+                <div class="row mb-4">
+                    <!-- Attendance by Company -->
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h6 class="mb-0">Attendance by Company</h6>
+                            </div>
+                            <div class="card-body">
+                                @if (report.AttendanceByCompany.Any())
+                                {
+                                    @foreach (var companyData in report.AttendanceByCompany.Take(10))
+                                    {
+                                        var percentage = report.TotalAttendees > 0 ? (double)companyData.Value / report.TotalAttendees * 100 : 0;
+                                        <div class="mb-3">
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <span class="fw-bold">@companyData.Key</span>
+                                                <span class="text-muted">@companyData.Value (@($"{percentage:F1}%"))</span>
+                                            </div>
+                                            <div class="progress" style="height: 8px;">
+                                                <div class="progress-bar bg-primary" style="width: @($"{percentage}%")"></div>
+                                            </div>
+                                        </div>
+                                    }
+                                }
+                                else
+                                {
+                                    <p class="text-muted text-center">No company data available</p>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Attendance by Day of Week -->
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h6 class="mb-0">Attendance by Day of Week</h6>
+                            </div>
+                            <div class="card-body">
+                                @if (report.AttendanceByDayOfWeek.Any())
+                                {
+                                    var maxAttendance = report.AttendanceByDayOfWeek.Values.Max();
+                                    @foreach (var dayData in Enum.GetValues<DayOfWeek>())
+                                    {
+                                        var attendanceCount = report.AttendanceByDayOfWeek.GetValueOrDefault(dayData, 0);
+                                        var percentage = maxAttendance > 0 ? (double)attendanceCount / maxAttendance * 100 : 0;
+                                        <div class="mb-3">
+                                            <div class="d-flex justify-content-between mb-1">
+                                                <span class="fw-bold">@dayData.ToString()</span>
+                                                <span class="text-muted">@attendanceCount</span>
+                                            </div>
+                                            <div class="progress" style="height: 8px;">
+                                                <div class="progress-bar bg-success" style="width: @($"{percentage}%")"></div>
+                                            </div>
+                                        </div>
+                                    }
+                                }
+                                else
+                                {
+                                    <p class="text-muted text-center">No day-of-week data available</p>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top Attendees -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Top Attendees</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (report.TopAttendees.Any())
+                        {
+                            <div class="row">
+                                @foreach (var attendee in report.TopAttendees.Take(10))
+                                {
+                                    <div class="col-md-6 col-lg-4 mb-3">
+                                        <div class="card bg-light">
+                                            <div class="card-body p-3">
+                                                <div class="d-flex align-items-center">
+                                                    <div class="avatar-circle bg-primary text-white me-3">
+                                                        @attendee.Name.Substring(0, 1).ToUpper()
+                                                    </div>
+                                                    <div>
+                                                        <h6 class="mb-0">@attendee.Name</h6>
+                                                        <small class="text-muted">@attendee.Company</small>
+                                                        <br />
+                                                        <small class="text-muted">@attendee.Email</small>
+                                                    </div>
+                                                    @if (attendee.IsVip)
+                                                    {
+                                                        <span class="badge bg-warning text-dark ms-auto">VIP</span>
+                                                    }
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="text-muted text-center">No attendee data available for this period</p>
+                        }
+                    </div>
+                </div>
+            }
+            else
+            {
+                <!-- No Report State -->
+                <div class="text-center py-5">
+                    <i class="fas fa-chart-bar display-1 text-muted mb-3"></i>
+                    <h3 class="text-muted">Generate Attendance Report</h3>
+                    <p class="text-muted">Select a date range and click "Generate Report" to view attendance analytics.</p>
+                    <button class="btn btn-primary btn-lg" @onclick="GenerateReport">
+                        <i class="fas fa-play me-2"></i>
+                        Generate Report
+                    </button>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private AttendanceReport? report;
+    private DateTime startDate = DateTime.Today.AddDays(-30);
+    private DateTime endDate = DateTime.Today;
+    private bool isLoading = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await SessionTracker.TrackPageViewAsync("Attendance-Reports");
+        await GenerateReport();
+    }
+
+    private async Task GenerateReport()
+    {
+        isLoading = true;
+        
+        try
+        {
+            var dateRange = new DateRange
+            {
+                StartDate = startDate,
+                EndDate = endDate.AddDays(1).AddTicks(-1) // Include the entire end date
+            };
+            
+            report = await AttendanceService.GenerateAttendanceReportAsync(dateRange);
+        }
+        catch (Exception)
+        {
+            report = null;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task RefreshReport()
+    {
+        await GenerateReport();
+    }
+
+    private string GetAttendanceRateBadgeColor(double rate)
+    {
+        return rate switch
+        {
+            >= 90 => "success",
+            >= 75 => "info",
+            >= 60 => "warning",
+            _ => "danger"
+        };
+    }
+
+    private string GetCompletionRateBadgeColor(double rate)
+    {
+        return rate switch
+        {
+            >= 85 => "success",
+            >= 70 => "info",
+            >= 50 => "warning",
+            _ => "danger"
+        };
+    }
+}
+
+<style>
+    .avatar-circle {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 1.2rem;
+    }
+    
+    .border-end {
+        border-right: 1px solid #dee2e6;
+    }
+    
+    .progress {
+        background-color: #e9ecef;
+    }
+    
+    .card {
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        border: 1px solid rgba(0, 0, 0, 0.125);
+    }
+    
+    .table th {
+        font-weight: 600;
+        font-size: 0.875rem;
+    }
+    
+    .badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+</style>

@@ -11,5 +11,6 @@ builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.
 builder.Services.AddScoped<IEventService, EventService>();
 builder.Services.AddScoped<ISessionTrackingService, SessionTrackingService>();
 builder.Services.AddScoped<IStateManagementService, StateManagementService>();
+builder.Services.AddScoped<IAttendanceTrackingService, AttendanceTrackingService>();
 
 await builder.Build().RunAsync();

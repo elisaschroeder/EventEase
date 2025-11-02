@@ -1,0 +1,821 @@
+@page "/attendance"
+@using EventEase.Models
+@using EventEase.Models.Attendance
+@using EventEase.Services
+@using EventEase.Components
+@using Microsoft.AspNetCore.Components.Forms
+@inject IAttendanceTrackingService AttendanceService
+@inject IEventService EventService
+@inject ISessionTrackingService SessionTracker
+@inject NavigationManager Navigation
+
+<PageTitle>Attendance Tracker - EventEase</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="display-5 fw-bold text-primary">
+                    <i class="fas fa-users me-3"></i>
+                    Attendance Tracker
+                </h1>
+                
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary" @onclick="RefreshData">
+                        <i class="fas fa-sync-alt me-2"></i>
+                        Refresh
+                    </button>
+                    <button class="btn btn-success" @onclick="() => ShowAddAttendeeModal = true">
+                        <i class="fas fa-user-plus me-2"></i>
+                        Add Attendee
+                    </button>
+                    <button class="btn btn-info" @onclick="() => ShowReportModal = true">
+                        <i class="fas fa-chart-bar me-2"></i>
+                        Generate Report
+                    </button>
+                </div>
+            </div>
+
+            <!-- Dashboard Cards -->
+            <div class="row mb-4">
+                <div class="col-lg-3 col-md-6 mb-3">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="mb-0">@dashboardData.GetValueOrDefault("TotalAttendees", 0)</h4>
+                                    <p class="mb-0">Total Attendees</p>
+                                </div>
+                                <i class="fas fa-users fa-2x opacity-75"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-3 col-md-6 mb-3">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="mb-0">@dashboardData.GetValueOrDefault("TodayCheckIns", 0)</h4>
+                                    <p class="mb-0">Today's Check-ins</p>
+                                </div>
+                                <i class="fas fa-calendar-check fa-2x opacity-75"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-3 col-md-6 mb-3">
+                    <div class="card bg-info text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="mb-0">@($"{dashboardData.GetValueOrDefault("AverageAttendanceRate", 0.0):F1}%")</h4>
+                                    <p class="mb-0">Attendance Rate</p>
+                                </div>
+                                <i class="fas fa-percentage fa-2x opacity-75"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-3 col-md-6 mb-3">
+                    <div class="card bg-warning text-dark">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="mb-0">@dashboardData.GetValueOrDefault("VipAttendees", 0)</h4>
+                                    <p class="mb-0">VIP Attendees</p>
+                                </div>
+                                <i class="fas fa-star fa-2x opacity-75"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Check-In Component -->
+            <div class="row mb-4">
+                <div class="col-lg-4">
+                    <QuickCheckInComponent OnAttendeeCheckedIn="RefreshData" OnAttendeeCheckedOut="RefreshData" />
+                </div>
+                <div class="col-lg-8">
+                    <!-- Recent Check-ins -->
+                    @if (dashboardData.ContainsKey("RecentCheckIns"))
+                    {
+                        var recentCheckIns = (List<AttendeeRecord>)dashboardData["RecentCheckIns"];
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">Recent Check-ins (Last 24 hours)</h6>
+                            </div>
+                            <div class="card-body">
+                                @if (recentCheckIns.Any())
+                                {
+                                    <div class="list-group list-group-flush">
+                                        @foreach (var attendee in recentCheckIns.Take(5))
+                                        {
+                                            <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                                <div>
+                                                    <strong>@attendee.Name</strong>
+                                                    <br />
+                                                    <small class="text-muted">@attendee.Company</small>
+                                                </div>
+                                                <div class="text-end">
+                                                    <small class="text-muted">@attendee.CheckInTime?.ToString("HH:mm")</small>
+                                                    @if (attendee.IsVip)
+                                                    {
+                                                        <br />
+                                                        <span class="badge bg-warning text-dark">VIP</span>
+                                                    }
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
+                                    <p class="text-muted text-center mb-0">No recent check-ins</p>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Event Selection and Filters -->
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <label class="form-label">Select Event</label>
+                    <select class="form-select" value="@selectedEventId" @onchange="OnEventChanged">
+                        <option value="0">All Events</option>
+                        @foreach (var eventItem in events)
+                        {
+                            <option value="@eventItem.Id">@eventItem.Name (@eventItem.Date.ToString("MMM dd, yyyy"))</option>
+                        }
+                    </select>
+                </div>
+                
+                <div class="col-md-4">
+                    <label class="form-label">Filter by Status</label>
+                    <select class="form-select" value="@selectedStatus" @onchange="OnStatusFilterChanged">
+                        <option value="">All Statuses</option>
+                        <option value="Registered">Registered</option>
+                        <option value="CheckedIn">Checked In</option>
+                        <option value="CheckedOut">Checked Out</option>
+                        <option value="NoShow">No Show</option>
+                        <option value="Cancelled">Cancelled</option>
+                    </select>
+                </div>
+                
+                <div class="col-md-4">
+                    <label class="form-label">Search Attendees</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" placeholder="Search by name, email, company..." 
+                               @bind="searchTerm" @onkeypress="OnSearchKeyPress" />
+                        <button class="btn btn-outline-primary" @onclick="PerformSearch">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attendance Stats for Selected Event -->
+            @if (selectedEventId > 0 && eventStats != null)
+            {
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Event Statistics: @eventStats.EventName</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-2">
+                                <div class="text-center">
+                                    <h4 class="text-primary">@eventStats.TotalRegistered</h4>
+                                    <small class="text-muted">Registered</small>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="text-center">
+                                    <h4 class="text-success">@eventStats.CheckedIn</h4>
+                                    <small class="text-muted">Checked In</small>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="text-center">
+                                    <h4 class="text-info">@eventStats.CheckedOut</h4>
+                                    <small class="text-muted">Checked Out</small>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="text-center">
+                                    <h4 class="text-danger">@eventStats.NoShows</h4>
+                                    <small class="text-muted">No Shows</small>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="text-center">
+                                    <h4 class="text-warning">@($"{eventStats.AttendanceRate:F1}%")</h4>
+                                    <small class="text-muted">Attendance Rate</small>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="text-center">
+                                    <h4 class="text-secondary">@(eventStats.AverageStayDuration?.ToString(@"h\:mm") ?? "N/A")</h4>
+                                    <small class="text-muted">Avg. Stay</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <!-- Bulk Actions -->
+            @if (selectedAttendees.Any())
+            {
+                <div class="alert alert-info d-flex justify-content-between align-items-center">
+                    <span>@selectedAttendees.Count attendee(s) selected</span>
+                    <div>
+                        <button class="btn btn-sm btn-success me-2" @onclick="BulkCheckIn" 
+                                disabled="!selectedAttendees.Any(id => attendees.Any(a => a.Id == id && a.Status == AttendanceStatus.Registered))">
+                            <i class="fas fa-check me-1"></i>
+                            Bulk Check In
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="ClearSelection">
+                            Clear Selection
+                        </button>
+                    </div>
+                </div>
+            }
+
+            <!-- Loading State -->
+            @if (isLoading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading attendees...</span>
+                    </div>
+                    <div class="mt-3">Loading attendance data...</div>
+                </div>
+            }
+            <!-- Error State -->
+            else if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger" role="alert">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    @errorMessage
+                    <button class="btn btn-sm btn-outline-danger ms-3" @onclick="RefreshData">
+                        Try Again
+                    </button>
+                </div>
+            }
+            <!-- Attendees Table -->
+            else if (attendees.Any())
+            {
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Attendees (@attendees.Count)</h5>
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="selectAll" 
+                                   @onchange="ToggleSelectAll" 
+                                   checked="@(attendees.Any() && selectedAttendees.Count == attendees.Count)" />
+                            <label class="form-check-label" for="selectAll">
+                                Select All
+                            </label>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th></th>
+                                        <th>Name</th>
+                                        <th>Email</th>
+                                        <th>Company</th>
+                                        <th>Status</th>
+                                        <th>Check In</th>
+                                        <th>Check Out</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var attendee in attendees)
+                                    {
+                                        <tr class="@(attendee.IsVip ? "table-warning" : "")">
+                                            <td>
+                                                <input type="checkbox" class="form-check-input" 
+                                                       @onchange="(e) => ToggleAttendeeSelection(attendee.Id, (bool)e.Value!)"
+                                                       checked="@selectedAttendees.Contains(attendee.Id)" />
+                                            </td>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    @attendee.Name
+                                                    @if (attendee.IsVip)
+                                                    {
+                                                        <span class="badge bg-warning text-dark ms-2">VIP</span>
+                                                    }
+                                                </div>
+                                            </td>
+                                            <td>@attendee.Email</td>
+                                            <td>@attendee.Company</td>
+                                            <td>
+                                                <span class="badge bg-@GetStatusBadgeColor(attendee.Status)">
+                                                    @attendee.Status.ToString().Replace("CheckedIn", "Checked In").Replace("CheckedOut", "Checked Out").Replace("NoShow", "No Show")
+                                                </span>
+                                            </td>
+                                            <td>@(attendee.CheckInTime?.ToString("MMM dd, yyyy HH:mm") ?? "-")</td>
+                                            <td>@(attendee.CheckOutTime?.ToString("MMM dd, yyyy HH:mm") ?? "-")</td>
+                                            <td>
+                                                <div class="btn-group btn-group-sm">
+                                                    @if (attendee.Status == AttendanceStatus.Registered)
+                                                    {
+                                                        <button class="btn btn-outline-success" @onclick="() => CheckInAttendee(attendee.Id)"
+                                                                title="Check In">
+                                                            <i class="fas fa-sign-in-alt"></i>
+                                                        </button>
+                                                    }
+                                                    @if (attendee.Status == AttendanceStatus.CheckedIn)
+                                                    {
+                                                        <button class="btn btn-outline-info" @onclick="() => CheckOutAttendee(attendee.Id)"
+                                                                title="Check Out">
+                                                            <i class="fas fa-sign-out-alt"></i>
+                                                        </button>
+                                                    }
+                                                    @if (attendee.Status == AttendanceStatus.Registered)
+                                                    {
+                                                        <button class="btn btn-outline-warning" @onclick="() => MarkAsNoShow(attendee.Id)"
+                                                                title="Mark as No Show">
+                                                            <i class="fas fa-user-times"></i>
+                                                        </button>
+                                                    }
+                                                    <button class="btn btn-outline-primary" @onclick="() => EditAttendee(attendee)"
+                                                            title="Edit">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            }
+            <!-- No Attendees State -->
+            else
+            {
+                <div class="text-center py-5">
+                    <i class="fas fa-users display-1 text-muted mb-3"></i>
+                    <h3 class="text-muted">No attendees found</h3>
+                    <p class="text-muted">
+                        @if (!string.IsNullOrEmpty(searchTerm))
+                        {
+                            <span>No attendees match your search criteria.</span>
+                        }
+                        else if (selectedEventId > 0)
+                        {
+                            <span>No attendees registered for this event yet.</span>
+                        }
+                        else
+                        {
+                            <span>No attendees registered across all events.</span>
+                        }
+                    </p>
+                    <button class="btn btn-success" @onclick="() => ShowAddAttendeeModal = true">
+                        <i class="fas fa-user-plus me-2"></i>
+                        Add First Attendee
+                    </button>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Attendee Modal -->
+@if (ShowAddAttendeeModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        @(editingAttendee?.Id > 0 ? "Edit Attendee" : "Add New Attendee")
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CloseAttendeeModal"></button>
+                </div>
+                <div class="modal-body">
+                    <EditForm Model="editingAttendee" OnValidSubmit="SaveAttendee">
+                        <DataAnnotationsValidator />
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Name *</label>
+                                <InputText @bind-Value="editingAttendee!.Name" class="form-control" />
+                                <ValidationMessage For="() => editingAttendee.Name" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Email *</label>
+                                <InputText @bind-Value="editingAttendee!.Email" class="form-control" />
+                                <ValidationMessage For="() => editingAttendee.Email" />
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Phone</label>
+                                <InputText @bind-Value="editingAttendee!.Phone" class="form-control" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Company</label>
+                                <InputText @bind-Value="editingAttendee!.Company" class="form-control" />
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Job Title</label>
+                                <InputText @bind-Value="editingAttendee!.JobTitle" class="form-control" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Event *</label>
+                                <InputSelect @bind-Value="editingAttendee!.EventId" class="form-select">
+                                    <option value="0">Select an event</option>
+                                    @foreach (var eventItem in events)
+                                    {
+                                        <option value="@eventItem.Id">@eventItem.Name</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="() => editingAttendee.EventId" />
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-12 mb-3">
+                                <div class="form-check">
+                                    <InputCheckbox @bind-Value="editingAttendee!.IsVip" class="form-check-input" id="isVip" />
+                                    <label class="form-check-label" for="isVip">
+                                        VIP Attendee
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Special Requirements</label>
+                            <InputTextArea @bind-Value="editingAttendee!.SpecialRequirements" class="form-control" rows="3" />
+                        </div>
+                        
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" @onclick="CloseAttendeeModal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">
+                                @(editingAttendee?.Id > 0 ? "Update" : "Add") Attendee
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Event> events = new();
+    private List<AttendeeRecord> attendees = new();
+    private Dictionary<string, object> dashboardData = new();
+    private AttendanceStats? eventStats;
+    
+    private int selectedEventId = 0;
+    private string selectedStatus = string.Empty;
+    private string searchTerm = string.Empty;
+    private bool isLoading = true;
+    private string errorMessage = string.Empty;
+    
+    private List<int> selectedAttendees = new();
+    private bool ShowAddAttendeeModal = false;
+    private bool ShowReportModal = false;
+    private AttendeeRecord? editingAttendee;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadInitialData();
+            await SessionTracker.TrackPageViewAsync("Attendance-Tracker");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to load attendance data: {ex.Message}";
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadInitialData()
+    {
+        isLoading = true;
+        errorMessage = string.Empty;
+        
+        try
+        {
+            events = await EventService.GetEventsAsync();
+            dashboardData = await AttendanceService.GetAttendanceDashboardDataAsync();
+            
+            if (selectedEventId > 0)
+            {
+                attendees = await AttendanceService.GetEventAttendeesAsync(selectedEventId);
+                eventStats = await AttendanceService.GetEventAttendanceStatsAsync(selectedEventId);
+            }
+            else if (!string.IsNullOrEmpty(searchTerm))
+            {
+                attendees = await AttendanceService.SearchAttendeesAsync(searchTerm);
+            }
+            else if (!string.IsNullOrEmpty(selectedStatus))
+            {
+                if (Enum.TryParse<AttendanceStatus>(selectedStatus, out var status))
+                {
+                    attendees = await AttendanceService.GetAttendeesByStatusAsync(status);
+                }
+            }
+            else
+            {
+                // Load all attendees for overview
+                var allAttendees = new List<AttendeeRecord>();
+                foreach (var eventItem in events)
+                {
+                    var eventAttendees = await AttendanceService.GetEventAttendeesAsync(eventItem.Id);
+                    allAttendees.AddRange(eventAttendees);
+                }
+                attendees = allAttendees.OrderBy(a => a.Name).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading data: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task RefreshData()
+    {
+        selectedAttendees.Clear();
+        await LoadInitialData();
+    }
+
+    private async Task OnEventChanged(ChangeEventArgs e)
+    {
+        selectedEventId = int.Parse(e.Value?.ToString() ?? "0");
+        selectedAttendees.Clear();
+        
+        if (selectedEventId > 0)
+        {
+            eventStats = await AttendanceService.GetEventAttendanceStatsAsync(selectedEventId);
+        }
+        else
+        {
+            eventStats = null;
+        }
+        
+        await LoadInitialData();
+    }
+
+    private async Task OnStatusFilterChanged(ChangeEventArgs e)
+    {
+        selectedStatus = e.Value?.ToString() ?? string.Empty;
+        selectedAttendees.Clear();
+        await LoadInitialData();
+    }
+
+    private async Task OnSearchKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await PerformSearch();
+        }
+    }
+
+    private async Task PerformSearch()
+    {
+        selectedAttendees.Clear();
+        await LoadInitialData();
+    }
+
+    private async Task CheckInAttendee(int attendeeId)
+    {
+        try
+        {
+            var attendee = attendees.FirstOrDefault(a => a.Id == attendeeId);
+            if (attendee != null)
+            {
+                var request = new CheckInRequest
+                {
+                    AttendeeId = attendeeId,
+                    EventId = attendee.EventId
+                };
+                
+                await AttendanceService.CheckInAttendeeAsync(request);
+                await RefreshData();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error checking in attendee: {ex.Message}";
+        }
+    }
+
+    private async Task CheckOutAttendee(int attendeeId)
+    {
+        try
+        {
+            var attendee = attendees.FirstOrDefault(a => a.Id == attendeeId);
+            if (attendee != null)
+            {
+                var request = new CheckOutRequest
+                {
+                    AttendeeId = attendeeId,
+                    EventId = attendee.EventId
+                };
+                
+                await AttendanceService.CheckOutAttendeeAsync(request);
+                await RefreshData();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error checking out attendee: {ex.Message}";
+        }
+    }
+
+    private async Task MarkAsNoShow(int attendeeId)
+    {
+        try
+        {
+            await AttendanceService.MarkAsNoShowAsync(attendeeId);
+            await RefreshData();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error marking as no show: {ex.Message}";
+        }
+    }
+
+    private async Task BulkCheckIn()
+    {
+        try
+        {
+            if (selectedEventId > 0 && selectedAttendees.Any())
+            {
+                await AttendanceService.BulkCheckInAsync(selectedAttendees, selectedEventId);
+                selectedAttendees.Clear();
+                await RefreshData();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error performing bulk check-in: {ex.Message}";
+        }
+    }
+
+    private void ToggleAttendeeSelection(int attendeeId, bool isSelected)
+    {
+        if (isSelected)
+        {
+            if (!selectedAttendees.Contains(attendeeId))
+                selectedAttendees.Add(attendeeId);
+        }
+        else
+        {
+            selectedAttendees.Remove(attendeeId);
+        }
+    }
+
+    private void ToggleSelectAll(ChangeEventArgs e)
+    {
+        var selectAll = (bool)e.Value!;
+        if (selectAll)
+        {
+            selectedAttendees = attendees.Select(a => a.Id).ToList();
+        }
+        else
+        {
+            selectedAttendees.Clear();
+        }
+    }
+
+    private void ClearSelection()
+    {
+        selectedAttendees.Clear();
+    }
+
+    private void EditAttendee(AttendeeRecord attendee)
+    {
+        editingAttendee = new AttendeeRecord
+        {
+            Id = attendee.Id,
+            EventId = attendee.EventId,
+            Name = attendee.Name,
+            Email = attendee.Email,
+            Phone = attendee.Phone,
+            Company = attendee.Company,
+            JobTitle = attendee.JobTitle,
+            IsVip = attendee.IsVip,
+            SpecialRequirements = attendee.SpecialRequirements,
+            Status = attendee.Status,
+            RegistrationDate = attendee.RegistrationDate,
+            CheckInTime = attendee.CheckInTime,
+            CheckOutTime = attendee.CheckOutTime,
+            Notes = attendee.Notes
+        };
+        ShowAddAttendeeModal = true;
+    }
+
+    private async Task SaveAttendee()
+    {
+        try
+        {
+            if (editingAttendee != null)
+            {
+                if (editingAttendee.Id > 0)
+                {
+                    await AttendanceService.UpdateAttendeeAsync(editingAttendee);
+                }
+                else
+                {
+                    await AttendanceService.RegisterAttendeeAsync(editingAttendee);
+                }
+                
+                CloseAttendeeModal();
+                await RefreshData();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error saving attendee: {ex.Message}";
+        }
+    }
+
+    private void CloseAttendeeModal()
+    {
+        ShowAddAttendeeModal = false;
+        editingAttendee = null;
+    }
+
+    private void StartAddingAttendee()
+    {
+        editingAttendee = new AttendeeRecord
+        {
+            EventId = selectedEventId > 0 ? selectedEventId : (events.FirstOrDefault()?.Id ?? 0)
+        };
+        ShowAddAttendeeModal = true;
+    }
+
+    private string GetStatusBadgeColor(AttendanceStatus status)
+    {
+        return status switch
+        {
+            AttendanceStatus.Registered => "primary",
+            AttendanceStatus.CheckedIn => "success",
+            AttendanceStatus.CheckedOut => "info",
+            AttendanceStatus.NoShow => "danger",
+            AttendanceStatus.Cancelled => "warning",
+            _ => "secondary"
+        };
+    }
+}
+
+<style>
+    .table-responsive {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+    
+    .card {
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        border: 1px solid rgba(0, 0, 0, 0.125);
+    }
+    
+    .badge {
+        font-size: 0.75rem;
+    }
+    
+    .btn-group-sm .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+    }
+    
+    .modal.show {
+        animation: fadeIn 0.15s ease-in-out;
+    }
+    
+    @@keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    .table-warning {
+        background-color: rgba(255, 193, 7, 0.1);
+    }
+</style>
