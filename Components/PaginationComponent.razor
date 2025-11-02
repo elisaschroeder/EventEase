@@ -1,0 +1,170 @@
+@using EventEase.Models
+
+<div class="pagination-container d-flex justify-content-between align-items-center">
+    <div class="pagination-info">
+        @if (PagedResult.TotalCount > 0)
+        {
+            <span class="text-muted">
+                Showing @PagedResult.StartItem-@PagedResult.EndItem of @PagedResult.TotalCount items
+            </span>
+        }
+        else
+        {
+            <span class="text-muted">No items found</span>
+        }
+    </div>
+
+    @if (PagedResult.TotalPages > 1)
+    {
+        <nav aria-label="Page navigation">
+            <ul class="pagination pagination-sm mb-0">
+                <!-- First page -->
+                <li class="page-item @(PagedResult.IsFirstPage ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => OnPageChanged(1)" disabled="@PagedResult.IsFirstPage">
+                        <i class="fas fa-angle-double-left"></i>
+                    </button>
+                </li>
+
+                <!-- Previous page -->
+                <li class="page-item @(PagedResult.HasPreviousPage ? "" : "disabled")">
+                    <button class="page-link" @onclick="() => OnPageChanged(PagedResult.PreviousPage)" disabled="@(!PagedResult.HasPreviousPage)">
+                        <i class="fas fa-angle-left"></i>
+                    </button>
+                </li>
+
+                <!-- Page numbers -->
+                @foreach (var pageNumber in GetVisiblePageNumbers())
+                {
+                    <li class="page-item @(pageNumber == PagedResult.Page ? "active" : "")">
+                        <button class="page-link" @onclick="() => OnPageChanged(pageNumber)">
+                            @pageNumber
+                        </button>
+                    </li>
+                }
+
+                <!-- Next page -->
+                <li class="page-item @(PagedResult.HasNextPage ? "" : "disabled")">
+                    <button class="page-link" @onclick="() => OnPageChanged(PagedResult.NextPage)" disabled="@(!PagedResult.HasNextPage)">
+                        <i class="fas fa-angle-right"></i>
+                    </button>
+                </li>
+
+                <!-- Last page -->
+                <li class="page-item @(PagedResult.IsLastPage ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => OnPageChanged(PagedResult.TotalPages)" disabled="@PagedResult.IsLastPage">
+                        <i class="fas fa-angle-double-right"></i>
+                    </button>
+                </li>
+            </ul>
+        </nav>
+    }
+
+    <div class="page-size-selector">
+        <label for="pageSize" class="form-label mb-0 me-2">Items per page:</label>
+        <select id="pageSize" class="form-select form-select-sm" style="width: auto;" 
+                value="@CurrentPageSize" @onchange="OnPageSizeChanged">
+            <option value="5">5</option>
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+         </select>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public PagedResult<Event> PagedResult { get; set; } = new();
+    [Parameter] public EventCallback<int> OnPageChange { get; set; }
+    [Parameter] public EventCallback<int> OnPageSizeChange { get; set; }
+    [Parameter] public int CurrentPageSize { get; set; } = 10;
+
+    private async Task OnPageChanged(int page)
+    {
+        if (page != PagedResult.Page && page >= 1 && page <= PagedResult.TotalPages)
+        {
+            await OnPageChange.InvokeAsync(page);
+        }
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var newPageSize) && newPageSize > 0)
+        {
+            await OnPageSizeChange.InvokeAsync(newPageSize);
+        }
+    }
+
+    private IEnumerable<int> GetVisiblePageNumbers()
+    {
+        const int maxVisiblePages = 5;
+        var startPage = Math.Max(1, PagedResult.Page - maxVisiblePages / 2);
+        var endPage = Math.Min(PagedResult.TotalPages, startPage + maxVisiblePages - 1);
+        
+        // Adjust start page if we're near the end
+        if (endPage - startPage < maxVisiblePages - 1)
+        {
+            startPage = Math.Max(1, endPage - maxVisiblePages + 1);
+        }
+
+        return Enumerable.Range(startPage, endPage - startPage + 1);
+    }
+}
+
+<style>
+    .pagination-container {
+        padding: 1rem 0;
+        border-top: 1px solid #dee2e6;
+        margin-top: 1rem;
+    }
+
+    .pagination-info {
+        font-size: 0.875rem;
+    }
+
+    .page-size-selector {
+        display: flex;
+        align-items: center;
+        font-size: 0.875rem;
+    }
+
+    .page-link {
+        border: none;
+        background: none;
+        color: #6c757d;
+        padding: 0.375rem 0.75rem;
+        text-decoration: none;
+        transition: all 0.2s ease-in-out;
+    }
+
+    .page-link:hover:not(:disabled) {
+        background-color: #e9ecef;
+        color: #495057;
+    }
+
+    .page-item.active .page-link {
+        background-color: #007bff;
+        border-color: #007bff;
+        color: white;
+    }
+
+    .page-item.disabled .page-link {
+        color: #6c757d;
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    @@media (max-width: 768px) {
+        .pagination-container {
+            flex-direction: column;
+            gap: 1rem;
+            text-align: center;
+        }
+        
+        .pagination-info {
+            order: 3;
+        }
+        
+        .page-size-selector {
+            order: 2;
+            justify-content: center;
+        }
+</style>

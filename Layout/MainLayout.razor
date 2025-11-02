@@ -1,0 +1,28 @@
+﻿@using EventEase.Services
+@inject IStateManagementService StateManagement
+@inject ISessionTrackingService SessionTracking
+@inherits LayoutComponentBase
+
+<div class="page">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <div class="top-row px-4">
+            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+        </div>
+
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        // Initialize session tracking and state management
+        await StateManagement.InitializeAsync();
+    }
+}

@@ -1,0 +1,64 @@
+@page "/notfound"
+
+<PageTitle>Page Not Found - EventEase</PageTitle>
+
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8 text-center py-5">
+            <div class="not-found-container">
+                <div class="display-1 mb-4" style="font-size: 8rem; font-weight: bold; color: #6c757d;">
+                    404
+                </div>
+                
+                <h1 class="display-4 mb-3">Page Not Found</h1>
+                
+                <p class="lead text-muted mb-4">
+                    Sorry, the page you're looking for doesn't exist or has been moved.
+                </p>
+                
+                <div class="search-suggestion mb-4">
+                    <p class="text-muted">Looking for something specific? Try:</p>
+                    <div class="d-flex flex-wrap justify-content-center gap-2">
+                        <a href="/events" class="badge bg-primary text-decoration-none p-2">Browse Events</a>
+                        <a href="/events/corporate" class="badge bg-info text-decoration-none p-2">Corporate Events</a>
+                        <a href="/events/social" class="badge bg-success text-decoration-none p-2">Social Events</a>
+                    </div>
+                </div>
+                
+                <div class="mt-4">
+                    <a href="/" class="btn btn-primary btn-lg me-3">
+                        <i class="bi bi-house-door me-2"></i>Go Home
+                    </a>
+                    <a href="/events" class="btn btn-outline-primary btn-lg">
+                        <i class="bi bi-calendar-event me-2"></i>Browse Events
+                    </a>
+                </div>
+                
+                <div class="mt-5">
+                    <small class="text-muted">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Error Code: 404 - Page Not Found
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .not-found-container {
+        padding: 2rem;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .search-suggestion .badge {
+        font-size: 0.85rem;
+        transition: transform 0.2s;
+    }
+    
+    .search-suggestion .badge:hover {
+        transform: translateY(-2px);
+    }
+</style>

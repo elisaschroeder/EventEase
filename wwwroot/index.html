@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="EventEase - Your premier event management platform for corporate and social events" />
+    <meta name="keywords" content="events, event management, corporate events, social events, conferences, workshops" />
+    <meta name="author" content="EventEase" />
+    
+    <title>EventEase - Event Management Platform</title>
+    <base href="/" />
+    
+    <!-- Preload critical resources -->
+    <link rel="preload" href="lib/bootstrap/dist/css/bootstrap.min.css" as="style" />
+    <link rel="preload" href="css/app.css" as="style" />
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="css/app.css" />
+    <link href="EventEase.styles.css" rel="stylesheet" />
+    
+    <!-- Icons and PWA manifest -->
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="apple-touch-icon" href="icon-192.png" />
+    <link rel="manifest" href="manifest.json" />
+    
+    <!-- Meta tags for social sharing -->
+    <meta property="og:title" content="EventEase - Event Management Platform" />
+    <meta property="og:description" content="Discover and manage amazing corporate and social events with EventEase" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="icon-192.png" />
+    
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" 
+          integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" 
+          crossorigin="anonymous" referrerpolicy="no-referrer" />
+</head>
+
+<body>
+    <div id="app">
+        <div class="d-flex justify-content-center align-items-center" style="height: 100vh; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+            <div class="text-center text-white">
+                <div class="spinner-border text-light mb-3" role="status" style="width: 3rem; height: 3rem;">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <h4 class="fw-bold">EventEase</h4>
+                <p class="mb-0">Loading your event management platform...</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="blazor-error-ui" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%); color: white; padding: 1rem; text-align: center; position: fixed; top: 0; left: 0; right: 0; z-index: 9999; box-shadow: 0 2px 10px rgba(0,0,0,0.2);">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        <strong>An error occurred while loading the application.</strong>
+        <a href="." class="btn btn-light btn-sm ms-3 text-decoration-none">
+            <i class="fas fa-redo me-1"></i>Reload
+        </a>
+        <span class="dismiss ms-2" style="cursor: pointer; font-size: 1.2rem;" title="Close">&times;</span>
+    </div>
+    
+    <script src="_framework/blazor.webassembly.js"></script>
+</body>
+
+</html>

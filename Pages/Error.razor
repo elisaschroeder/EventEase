@@ -1,0 +1,70 @@
+@page "/error"
+
+<PageTitle>Error - EventEase</PageTitle>
+
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8 text-center py-5">
+            <div class="error-container">
+                <i class="bi bi-exclamation-triangle-fill display-1 text-warning mb-4"></i>
+                
+                <h1 class="display-4 mb-3">Oops! Something went wrong</h1>
+                
+                <p class="lead text-muted mb-4">
+                    We encountered an unexpected error while processing your request.
+                </p>
+                
+                <div class="alert alert-light border" role="alert">
+                    <h5 class="alert-heading">What can you do?</h5>
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-2">
+                            <i class="bi bi-arrow-clockwise me-2"></i>
+                            Try refreshing the page
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-house-door me-2"></i>
+                            Go back to the home page
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-calendar-event me-2"></i>
+                            Browse our events
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="mt-4">
+                    <a href="/" class="btn btn-primary btn-lg me-3">
+                        <i class="bi bi-house-door me-2"></i>Go Home
+                    </a>
+                    <a href="/events" class="btn btn-outline-primary btn-lg">
+                        <i class="bi bi-calendar-event me-2"></i>Browse Events
+                    </a>
+                </div>
+                
+                <div class="mt-5">
+                    <small class="text-muted">
+                        If the problem persists, please contact our support team.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .error-container {
+        padding: 2rem;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    }
+    
+    .bi-exclamation-triangle-fill {
+        animation: pulse 2s infinite;
+    }
+    
+    @@keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+        100% { transform: scale(1); }
+    }
+</style>

@@ -1,0 +1,48 @@
+name: Deploy EventEase to GitHub Pages
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Build application
+      run: dotnet build --configuration Release --no-restore
+      
+    - name: Publish application
+      run: dotnet publish --configuration Release --no-build --output ./publish
+      
+    - name: Add .nojekyll file
+      run: touch ./publish/wwwroot/.nojekyll
+      
+    - name: Deploy to GitHub Pages
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./publish/wwwroot
+        force_orphan: true
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: eventease-build
+        path: ./publish/wwwroot
+        retention-days: 30

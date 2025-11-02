@@ -1,0 +1,408 @@
+@page "/events-paginated"
+@using EventEase.Models
+@using EventEase.Services
+@using EventEase.Components
+@inject IEventService EventService
+@inject ISessionTrackingService SessionTracker
+@inject IStateManagementService StateManager
+@inject NavigationManager Navigation
+
+<PageTitle>Events - EventEase</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="display-5 fw-bold text-primary">
+                    <i class="fas fa-calendar-alt me-3"></i>
+                    Discover Amazing Events
+                </h1>
+                
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary" @onclick="() => RefreshEvents()">
+                        <i class="fas fa-sync-alt me-2"></i>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <span class="input-group-text">
+                            <i class="fas fa-search"></i>
+                        </span>
+                        <input type="text" class="form-control" 
+                               placeholder="Search events by name, description, or location..." 
+                               @bind="searchTerm" 
+                               @onkeypress="OnSearchKeyPress" />
+                        <button class="btn btn-primary" type="button" @onclick="PerformSearch">
+                            Search
+                        </button>
+                    </div>
+                    @if (!string.IsNullOrEmpty(validationMessage))
+                    {
+                        <div class="text-danger mt-2">@validationMessage</div>
+                    }
+                </div>
+                
+                <div class="col-md-3">
+                    <select class="form-select" value="@selectedEventType" @onchange="OnFilterChanged">
+                        <option value="">All Events</option>
+                        <option value="Corporate">Corporate Events</option>
+                        <option value="Social">Social Events</option>
+                        <option value="Conference">Conferences</option>
+                        <option value="Workshop">Workshops</option>
+                        <option value="Networking">Networking</option>
+                    </select>
+                </div>
+
+                <div class="col-md-3">
+                    <select class="form-select" value="@sortBy" @onchange="OnSortChanged">
+                        <option value="date">Sort by Date</option>
+                        <option value="name">Sort by Name</option>
+                        <option value="price">Sort by Price</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-12">
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleSortDirection">
+                        <i class="fas fa-sort me-2"></i>
+                        @(sortDirection == SortDirection.Ascending ? "Ascending" : "Descending")
+                    </button>
+                </div>
+            </div>
+
+            @if (isLoading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading events...</span>
+                    </div>
+                    <div class="mt-3">Loading events...</div>
+                </div>
+            }
+            else if (!string.IsNullOrEmpty(errorMessage.Trim()))
+            {
+                <div class="alert alert-danger" role="alert">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    @errorMessage
+                    <button class="btn btn-sm btn-outline-danger ms-3" @onclick="RefreshEvents">
+                        Try Again
+                    </button>
+                </div>
+            }
+            else if (pagedResult.Items.Any())
+            {
+                <div class="row g-4">
+                    @foreach (var eventItem in pagedResult.Items)
+                    {
+                        <div class="col-lg-4 col-md-6">
+                            <div class="card h-100 shadow-sm event-card" @onclick="() => ViewEventDetails(eventItem.Id)">
+                                <img src="@eventItem.ImageUrl" class="card-img-top event-image" alt="@eventItem.Name" />
+                                
+                                <div class="card-body d-flex flex-column">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <span class="badge bg-@GetEventTypeBadgeColor(eventItem.Type)">
+                                            @eventItem.Type
+                                        </span>
+                                        <small class="text-muted">
+                                            <i class="fas fa-calendar me-1"></i>
+                                            @eventItem.Date.ToString("MMM dd, yyyy")
+                                        </small>
+                                    </div>
+                                    
+                                    <h5 class="card-title fw-bold text-truncate">@eventItem.Name</h5>
+                                    <p class="card-text text-muted flex-grow-1">
+                                        @(eventItem.Description.Length > 100 ? 
+                                          eventItem.Description.Substring(0, 100) + "..." : 
+                                          eventItem.Description)
+                                    </p>
+                                    
+                                    <div class="mt-auto">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <small class="text-muted">
+                                                <i class="fas fa-map-marker-alt me-1"></i>
+                                                @eventItem.Location
+                                            </small>
+                                            <span class="fw-bold text-primary">$@eventItem.Price.ToString("F2")</span>
+                                        </div>
+                                        
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <small class="text-muted">
+                                                @eventItem.CurrentAttendees/@eventItem.MaxAttendees attendees
+                                            </small>
+                                            <button class="btn btn-primary btn-sm" @onclick:stopPropagation="true" 
+                                                    @onclick="() => ViewEventDetails(eventItem.Id)">
+                                                View Details
+                                            </button>
+                                        </div>
+                                        
+                                        <div class="progress mt-2" style="height: 4px;">
+                                            <div class="progress-bar" role="progressbar" 
+                                                 style="width: @(((double)eventItem.CurrentAttendees / eventItem.MaxAttendees) * 100)%"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <PaginationComponent 
+                    PagedResult="@pagedResult" 
+                    CurrentPageSize="@paginationRequest.PageSize"
+                    OnPageChange="OnPageChanged" 
+                    OnPageSizeChange="OnPageSizeChanged" />
+            }
+            else
+            {
+                <div class="text-center py-5">
+                    <i class="fas fa-calendar-times display-1 text-muted mb-3"></i>
+                    <h3 class="text-muted">No events found</h3>
+                    <p class="text-muted">
+                        @if (!string.IsNullOrEmpty(searchTerm))
+                        {
+                            <span>No events match your search criteria. Try adjusting your search terms.</span>
+                        }
+                        else
+                        {
+                            <span>Check back later for exciting events!</span>
+                        }
+                    </p>
+                    @if (!string.IsNullOrEmpty(searchTerm) || !string.IsNullOrEmpty(selectedEventType))
+                    {
+                        <button class="btn btn-primary" @onclick="ClearFilters">
+                            <i class="fas fa-times me-2"></i>
+                            Clear Filters
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private PagedResult<Event> pagedResult = new();
+    private PaginationRequest paginationRequest = new();
+    private string searchTerm = string.Empty;
+    private string selectedEventType = string.Empty;
+    private string sortBy = "date";
+    private SortDirection sortDirection = SortDirection.Ascending;
+    private bool isLoading = true;
+    private string errorMessage = string.Empty;
+    private string validationMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            errorMessage = string.Empty;
+
+            await LoadEventsAsync();
+            await SessionTracker.TrackPageViewAsync("Events-Paginated");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to load events: {ex.Message}";
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadEventsAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = string.Empty;
+            
+            paginationRequest.SortBy = sortBy;
+            paginationRequest.SortDirection = sortDirection;
+
+            if (!string.IsNullOrEmpty(searchTerm))
+            {
+                pagedResult = await EventService.SearchEventsPagedAsync(searchTerm, paginationRequest);
+                await SessionTracker.TrackSearchAsync(searchTerm, pagedResult.TotalCount);
+            }
+            else if (!string.IsNullOrEmpty(selectedEventType))
+            {
+                if (Enum.TryParse<EventType>(selectedEventType, out var eventType))
+                {
+                    if (selectedEventType == "Corporate")
+                    {
+                        pagedResult = await EventService.GetCorporateEventsPagedAsync(paginationRequest);
+                    }
+                    else if (selectedEventType == "Social")
+                    {
+                        pagedResult = await EventService.GetSocialEventsPagedAsync(paginationRequest);
+                    }
+                    else
+                    {
+                        pagedResult = await EventService.GetEventsByTypePagedAsync(eventType, paginationRequest);
+                    }
+                }
+            }
+            else
+            {
+                pagedResult = await EventService.GetEventsPagedAsync(paginationRequest);
+            }
+
+            await StateManager.SavePreferenceAsync("lastViewedEvents", pagedResult.Items.Take(5).Select(e => e.Id).ToList());
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading events: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OnPageChanged(int page)
+    {
+        paginationRequest.Page = page;
+        await LoadEventsAsync();
+    }
+
+    private async Task OnPageSizeChanged(int pageSize)
+    {
+        paginationRequest.PageSize = pageSize;
+        paginationRequest.Page = 1; // Reset to first page
+        await LoadEventsAsync();
+    }
+
+    private async Task OnFilterChanged(ChangeEventArgs e)
+    {
+        selectedEventType = e.Value?.ToString() ?? string.Empty;
+        paginationRequest.Page = 1; // Reset to first page
+        await LoadEventsAsync();
+    }
+
+    private async Task OnSortChanged(ChangeEventArgs e)
+    {
+        sortBy = e.Value?.ToString() ?? "date";
+        paginationRequest.Page = 1; // Reset to first page
+        await LoadEventsAsync();
+    }
+
+    private async Task ToggleSortDirection()
+    {
+        sortDirection = sortDirection == SortDirection.Ascending ? SortDirection.Descending : SortDirection.Ascending;
+        paginationRequest.Page = 1; // Reset to first page
+        await LoadEventsAsync();
+    }
+
+    private async Task PerformSearch()
+    {
+        validationMessage = string.Empty;
+
+        if (!string.IsNullOrEmpty(searchTerm) && searchTerm.Length < 2)
+        {
+            validationMessage = "Search term must be at least 2 characters long.";
+            return;
+        }
+
+        paginationRequest.Page = 1; // Reset to first page
+        await LoadEventsAsync();
+    }
+
+    private async Task OnSearchKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await PerformSearch();
+        }
+    }
+
+    private async Task RefreshEvents()
+    {
+        paginationRequest.Page = 1;
+        await LoadEventsAsync();
+    }
+
+    private async Task ClearFilters()
+    {
+        searchTerm = string.Empty;
+        selectedEventType = string.Empty;
+        sortBy = "date";
+        sortDirection = SortDirection.Ascending;
+        paginationRequest.Page = 1;
+        validationMessage = string.Empty;
+        await LoadEventsAsync();
+    }
+
+    private async Task ViewEventDetails(int eventId)
+    {
+        try
+        {
+            var eventItem = pagedResult.Items.FirstOrDefault(e => e.Id == eventId);
+            await SessionTracker.TrackEventViewAsync(eventId, eventItem?.Name ?? "Unknown Event");
+            Navigation.NavigateTo($"/events/details/{eventId}");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Navigation error: {ex.Message}";
+        }
+    }
+
+    private string GetEventTypeBadgeColor(EventType eventType)
+    {
+        return eventType switch
+        {
+            EventType.Corporate => "primary",
+            EventType.Social => "success",
+            EventType.Wedding => "danger",
+            EventType.Conference => "info",
+            EventType.Workshop => "warning",
+            EventType.Networking => "secondary",
+            EventType.Gala => "dark",
+            EventType.TeamBuilding => "light",
+            _ => "secondary"
+        };
+    }
+}
+
+<style>
+    .event-card {
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        cursor: pointer;
+    }
+
+    .event-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15) !important;
+    }
+
+    .event-image {
+        height: 200px;
+        object-fit: cover;
+        transition: opacity 0.2s ease-in-out;
+    }
+
+    .event-card:hover .event-image {
+        opacity: 0.9;
+    }
+
+    .progress-bar {
+        background: linear-gradient(45deg, #007bff, #0056b3);
+    }
+
+    .badge {
+        font-size: 0.75rem;
+        padding: 0.375rem 0.75rem;
+    }
+
+    @@media (max-width: 768px) {
+        .display-5 {
+            font-size: 2rem;
+        }
+        
+        .col-md-6, .col-md-3 {
+            margin-bottom: 1rem;
+        }
+    }
+</style>

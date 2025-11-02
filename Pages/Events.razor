@@ -1,0 +1,369 @@
+@page "/events"
+@page "/events/{eventType}"
+@using EventEase.Services
+@using EventEase.Models
+@inject IEventService EventService
+@inject IStateManagementService StateManagement
+@inject ISessionTrackingService SessionTracking
+@inject NavigationManager Navigation
+
+<PageTitle>Browse Events - EventEase</PageTitle>
+
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="display-5 mb-3">
+                @if (!string.IsNullOrEmpty(EventType))
+                {
+                    <span>@(GetEventTypeDisplayName()) Events</span>
+                }
+                else
+                {
+                    <span>All Events</span>
+                }
+            </h1>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <span class="input-group-text">
+                            <i class="bi bi-search"></i>
+                        </span>
+                        <input type="text" class="form-control @(hasSearchError ? "is-invalid" : "")" 
+                               placeholder="Search events..." 
+                               @bind="searchTerm" 
+                               @onkeypress="OnSearchKeyPress" 
+                               maxlength="100" />
+                        <button class="btn btn-outline-secondary" @onclick="SearchEvents" disabled="@isSearching">
+                            @if (isSearching)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            }
+                            Search
+                        </button>
+                        @if (hasSearchError)
+                        {
+                            <div class="invalid-feedback">
+                                @searchErrorMessage
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <select class="form-select" @onchange="OnEventTypeChanged" visually-hidden="true">
+                        <option value="">All Event Types</option>
+                        <option value="corporate">Corporate</option>
+                        <option value="social">Social</option>
+                        <option value="conference">Conference</option>
+                        <option value="workshop">Workshop</option>
+                        <option value="networking">Networking</option>
+                        <option value="gala">Gala</option>
+                        <option value="teambuilding">Team Building</option>
+                        <option value="wedding">Wedding</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading events...</p>
+        </div>
+    }
+    else if (events == null || !events.Any())
+    {
+        <div class="text-center py-5">
+            <i class="bi bi-calendar-x display-1 text-muted"></i>
+            <h3 class="mt-3">No events found</h3>
+            <p class="text-muted">Try adjusting your search criteria or check back later for new events.</p>
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            @foreach (var eventItem in events)
+            {
+                <div class="col-lg-4 col-md-6 mb-4">
+                    <div class="card h-100 shadow-sm event-card">
+                        <img src="@eventItem.ImageUrl" class="card-img-top" alt="@eventItem.Name" 
+                             style="height: 200px; object-fit: cover;">
+                        <div class="card-body d-flex flex-column">
+                            <div class="mb-2">
+                                <span class="badge bg-@GetEventTypeBadgeColor(eventItem.Type)">@eventItem.Type</span>
+                                @if (eventItem.CurrentAttendees >= eventItem.MaxAttendees)
+                                {
+                                    <span class="badge bg-danger ms-1">Full</span>
+                                }
+                                else if (eventItem.CurrentAttendees >= eventItem.MaxAttendees * 0.8)
+                                {
+                                    <span class="badge bg-warning ms-1">Almost Full</span>
+                                }
+                            </div>
+                            
+                            <h5 class="card-title">@eventItem.Name</h5>
+                            
+                            <div class="mb-2">
+                                <small class="text-muted">
+                                    <i class="bi bi-calendar me-1"></i>@eventItem.Date.ToString("MMM dd, yyyy")
+                                </small><br>
+                                <small class="text-muted">
+                                    <i class="bi bi-clock me-1"></i>@eventItem.Date.ToString("h:mm tt")
+                                </small><br>
+                                <small class="text-muted">
+                                    <i class="bi bi-geo-alt me-1"></i>@eventItem.Location
+                                </small><br>
+                                <small class="text-muted">
+                                    <i class="bi bi-people me-1"></i>@eventItem.CurrentAttendees / @eventItem.MaxAttendees attendees
+                                </small>
+                            </div>
+                            
+                            <p class="card-text flex-grow-1">
+                                @(eventItem.Description.Length > 120 ? eventItem.Description.Substring(0, 120) + "..." : eventItem.Description)
+                            </p>
+                            
+                            @if (eventItem.Tags.Any())
+                            {
+                                <div class="mb-2">
+                                    @foreach (var tag in eventItem.Tags.Take(3))
+                                    {
+                                        <span class="badge bg-light text-dark me-1">#@tag</span>
+                                    }
+                                </div>
+                            }
+                            
+                            <div class="mt-auto">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <strong class="text-primary fs-5">$@eventItem.Price</strong>
+                                    <small class="text-muted">by @eventItem.Organizer</small>
+                                </div>
+                                
+                                <div class="d-grid">
+                                    <button class="btn btn-primary" @onclick="() => NavigateToEventDetail(eventItem.Id)">
+                                        <i class="bi bi-eye me-1"></i>View Details & Register
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+        
+        <div class="text-center mt-4">
+            <p class="text-muted">Showing @events.Count event(s)</p>
+        </div>
+    }
+</div>
+
+<style>
+    .event-card {
+        transition: transform 0.2s;
+    }
+
+    .event-card:hover {
+        transform: translateY(-5px);
+    }
+</style>
+
+@code {
+    [Parameter] public string? EventType { get; set; }
+    
+    private List<Event>? events;
+    private string searchTerm = string.Empty;
+    private bool isLoading = true;
+    private bool isSearching = false;
+    private bool hasSearchError = false;
+    private string searchErrorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEventsAsync();
+        await SessionTracking.TrackPageViewAsync($"events/{EventType ?? "all"}");
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadEventsAsync();
+        await StateManagement.UpdateEventTypeAsync(EventType ?? "all");
+    }
+
+    private async Task LoadEventsAsync()
+    {
+        isLoading = true;
+        hasSearchError = false;
+        searchErrorMessage = string.Empty;
+        StateHasChanged();
+
+        try
+        {
+            if (!string.IsNullOrEmpty(EventType))
+            {
+                // Handle special filtering for corporate and social events
+                if (EventType.Equals("corporate", StringComparison.OrdinalIgnoreCase))
+                {
+                    events = await EventService.GetCorporateEventsAsync();
+                }
+                else if (EventType.Equals("social", StringComparison.OrdinalIgnoreCase))
+                {
+                    events = await EventService.GetSocialEventsAsync();
+                }
+                else if (Enum.TryParse<EventType>(EventType, true, out var eventType))
+                {
+                    events = await EventService.GetEventsByTypeAsync(eventType);
+                }
+                else
+                {
+                    events = await EventService.GetEventsAsync();
+                }
+            }
+            else if (!string.IsNullOrEmpty(searchTerm))
+            {
+                // Validate search term
+                if (searchTerm.Length > 100)
+                {
+                    hasSearchError = true;
+                    searchErrorMessage = "Search term too long (max 100 characters)";
+                    return;
+                }
+                
+                if (searchTerm.Trim().Length < 2)
+                {
+                    hasSearchError = true;
+                    searchErrorMessage = "Search term must be at least 2 characters";
+                    return;
+                }
+
+                events = await EventService.SearchEventsAsync(searchTerm.Trim());
+            }
+            else
+            {
+                events = await EventService.GetEventsAsync();
+            }
+        }
+        catch (Exception)
+        {
+            hasSearchError = true;
+            searchErrorMessage = "An error occurred while loading events. Please try again.";
+            events = new List<Event>(); // Fallback to empty list
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+            
+            // Update state management
+            if (events != null)
+            {
+                await StateManagement.UpdateCurrentEventsAsync(events);
+            }
+        }
+    }
+
+    private async Task SearchEvents()
+    {
+        if (isSearching) return; // Prevent multiple simultaneous searches
+        
+        isSearching = true;
+        hasSearchError = false;
+        searchErrorMessage = string.Empty;
+        
+        try
+        {
+            await LoadEventsAsync();
+            await StateManagement.UpdateSearchTermAsync(searchTerm);
+        }
+        finally
+        {
+            isSearching = false;
+        }
+    }
+
+    private async Task OnSearchKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SearchEvents();
+        }
+    }
+
+    private void OnEventTypeChanged(ChangeEventArgs e)
+    {
+        try
+        {
+            var selectedType = e.Value?.ToString();
+            
+            // Validate the selected type
+            if (selectedType != null && selectedType.Length > 50)
+            {
+                // Ignore invalid selections
+                return;
+            }
+            
+            if (string.IsNullOrEmpty(selectedType))
+            {
+                Navigation.NavigateTo("/events");
+            }
+            else
+            {
+                // Sanitize the input to prevent potential issues
+                var sanitizedType = selectedType.Trim().ToLower();
+                var allowedTypes = new[] { "corporate", "social", "conference", "workshop", "networking", "gala", "teambuilding", "wedding" };
+                
+                if (allowedTypes.Contains(sanitizedType))
+                {
+                    Navigation.NavigateTo($"/events/{sanitizedType}");
+                }
+                else
+                {
+                    // Fallback to all events if type is not recognized
+                    Navigation.NavigateTo("/events");
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // Fallback to all events on any error
+            Navigation.NavigateTo("/events");
+        }
+    }
+
+    private void NavigateToEventDetail(int eventId)
+    {
+        Navigation.NavigateTo($"/events/details/{eventId}");
+    }
+
+    private string GetEventTypeDisplayName()
+    {
+        if (string.IsNullOrEmpty(EventType))
+            return "All";
+
+        return EventType switch
+        {
+            "corporate" => "Corporate",
+            "social" => "Social", 
+            "teambuilding" => "Team Building",
+            _ => char.ToUpper(EventType[0]) + EventType.Substring(1).ToLower()
+        };
+    }
+
+    private string GetEventTypeBadgeColor(EventType eventType)
+    {
+        return eventType switch
+        {
+            Models.EventType.Corporate => "primary",
+            Models.EventType.Social => "success",
+            Models.EventType.Conference => "info",
+            Models.EventType.Workshop => "warning",
+            Models.EventType.Networking => "secondary",
+            Models.EventType.Gala => "danger",
+            Models.EventType.TeamBuilding => "dark",
+            Models.EventType.Wedding => "light",
+            _ => "secondary"
+        };
+    }
+}

@@ -1,0 +1,430 @@
+@page "/session-dashboard"
+@using EventEase.Services
+@using EventEase.Models.Session
+@inject ISessionTrackingService SessionTracking
+@inject IStateManagementService StateManagement
+@implements IDisposable
+
+<PageTitle>Session Dashboard - EventEase</PageTitle>
+
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="display-5 mb-3">
+                <i class="bi bi-graph-up me-2"></i>Session Dashboard
+            </h1>
+            <p class="text-muted">Track your browsing activity and preferences</p>
+        </div>
+    </div>
+
+    @if (currentSession != null)
+    {
+        <!-- Session Overview -->
+        <div class="row mb-4">
+            <div class="col-md-3 mb-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="bi bi-clock display-4 text-primary mb-2"></i>
+                        <h5 class="card-title">Session Duration</h5>
+                        <p class="card-text fs-5">@FormatDuration(currentSession.SessionDuration)</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="bi bi-eye display-4 text-success mb-2"></i>
+                        <h5 class="card-title">Page Views</h5>
+                        <p class="card-text fs-5">@currentSession.PageViews</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="bi bi-calendar-event display-4 text-info mb-2"></i>
+                        <h5 class="card-title">Events Viewed</h5>
+                        <p class="card-text fs-5">@currentSession.ViewedEvents.Count</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="bi bi-search display-4 text-warning mb-2"></i>
+                        <h5 class="card-title">Searches</h5>
+                        <p class="card-text fs-5">@currentSession.SearchHistory.Count</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Current Page & Navigation -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-compass me-2"></i>Current Navigation
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row">
+                            <dt class="col-sm-4">Current Page:</dt>
+                            <dd class="col-sm-8">
+                                <span class="badge bg-primary">@(currentSession.CurrentPage ?? "Unknown")</span>
+                            </dd>
+                            
+                            <dt class="col-sm-4">Previous Page:</dt>
+                            <dd class="col-sm-8">
+                                <span class="badge bg-secondary">@(currentSession.PreviousPage ?? "None")</span>
+                            </dd>
+                            
+                            <dt class="col-sm-4">Session Started:</dt>
+                            <dd class="col-sm-8">@currentSession.CreatedAt.ToString("MMM dd, yyyy HH:mm")</dd>
+                            
+                            <dt class="col-sm-4">Last Activity:</dt>
+                            <dd class="col-sm-8">@currentSession.LastActivity.ToString("MMM dd, yyyy HH:mm")</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-cart me-2"></i>Shopping Cart
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        @if (currentSession.Cart.Items.Any())
+                        {
+                            <p><strong>Total Items:</strong> @currentSession.Cart.TotalItems</p>
+                            <p><strong>Total Amount:</strong> $@currentSession.Cart.TotalAmount.ToString("F2")</p>
+                            <div class="cart-items">
+                                @foreach (var item in currentSession.Cart.Items)
+                                {
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <small>@item.EventName</small>
+                                        <span class="badge bg-success">$@item.Price</span>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="text-muted">Cart is empty</p>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Search History -->
+        @if (currentSession.SearchHistory.Any())
+        {
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="bi bi-clock-history me-2"></i>Recent Searches
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex flex-wrap gap-2">
+                                @foreach (var search in currentSession.SearchHistory.TakeLast(10).Reverse())
+                                {
+                                    <span class="badge bg-light text-dark border">@search</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- User Preferences -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-gear me-2"></i>User Preferences
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <dl class="row">
+                            <dt class="col-sm-6">Preferred Event Type:</dt>
+                            <dd class="col-sm-6">
+                                <span class="badge bg-info">@(string.IsNullOrEmpty(currentSession.Preferences.PreferredEventType) ? "None" : currentSession.Preferences.PreferredEventType)</span>
+                            </dd>
+                            
+                            <dt class="col-sm-6">Max Price:</dt>
+                            <dd class="col-sm-6">$@currentSession.Preferences.MaxPrice</dd>
+                            
+                            <dt class="col-sm-6">Page Size:</dt>
+                            <dd class="col-sm-6">@currentSession.Preferences.PreferredPageSize items</dd>
+                            
+                            <dt class="col-sm-6">Email Notifications:</dt>
+                            <dd class="col-sm-6">
+                                <span class="badge @(currentSession.Preferences.EmailNotifications ? "bg-success" : "bg-secondary")">
+                                    @(currentSession.Preferences.EmailNotifications ? "Enabled" : "Disabled")
+                                </span>
+                            </dd>
+                        </dl>
+                        
+                        @if (currentSession.Preferences.FavoriteEventTypes.Any())
+                        {
+                            <div class="mt-3">
+                                <strong>Favorite Event Types:</strong>
+                                <div class="mt-2">
+                                    @foreach (var type in currentSession.Preferences.FavoriteEventTypes)
+                                    {
+                                        <span class="badge bg-primary me-1">@type</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-activity me-2"></i>Session Analytics
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        @if (analytics != null)
+                        {
+                            <dl class="row">
+                                <dt class="col-sm-6">Entry Page:</dt>
+                                <dd class="col-sm-6">@analytics.EntryPage</dd>
+                                
+                                <dt class="col-sm-6">Most Viewed Type:</dt>
+                                <dd class="col-sm-6">@analytics.MostViewedEventType</dd>
+                                
+                                <dt class="col-sm-6">Converted:</dt>
+                                <dd class="col-sm-6">
+                                    <span class="badge @(analytics.ConvertedToRegistration ? "bg-success" : "bg-secondary")">
+                                        @(analytics.ConvertedToRegistration ? "Yes" : "No")
+                                    </span>
+                                </dd>
+                                
+                                <dt class="col-sm-6">Registrations:</dt>
+                                <dd class="col-sm-6">@analytics.CompletedRegistrations / @analytics.RegistrationAttempts</dd>
+                            </dl>
+                        }
+                        else
+                        {
+                            <div class="text-center">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading analytics...</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Session Events -->
+        @if (sessionEvents.Any())
+        {
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="bi bi-list me-2"></i>Recent Activity
+                            </h5>
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="LoadSessionEvents">
+                                <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Time</th>
+                                            <th>Event Type</th>
+                                            <th>Page</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var sessionEvent in sessionEvents.TakeLast(10).Reverse())
+                                        {
+                                            <tr>
+                                                <td><small>@sessionEvent.Timestamp.ToString("HH:mm:ss")</small></td>
+                                                <td>
+                                                    <span class="badge @GetEventTypeBadgeClass(sessionEvent.EventType)">
+                                                        @sessionEvent.EventType
+                                                    </span>
+                                                </td>
+                                                <td><small>@sessionEvent.Page</small></td>
+                                                <td><small>@sessionEvent.Action</small></td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Session Actions -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-tools me-2"></i>Session Actions
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button class="btn btn-outline-success" @onclick="RefreshSession">
+                                <i class="bi bi-arrow-clockwise me-1"></i>Refresh Session
+                            </button>
+                            <button class="btn btn-outline-warning" @onclick="ClearSearchHistory">
+                                <i class="bi bi-trash me-1"></i>Clear Search History
+                            </button>
+                            <button class="btn btn-outline-info" @onclick="ExportSessionData">
+                                <i class="bi bi-download me-1"></i>Export Data
+                            </button>
+                            <button class="btn btn-outline-danger" @onclick="ClearSession">
+                                <i class="bi bi-x-circle me-1"></i>Clear Session
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading session data...</span>
+            </div>
+            <p class="mt-2">Loading session information...</p>
+        </div>
+    }
+</div>
+
+@code {
+    private UserSession? currentSession;
+    private SessionAnalytics? analytics;
+    private List<SessionEvent> sessionEvents = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSessionData();
+        
+        // Subscribe to session updates
+        StateManagement.PropertyChanged += OnStateChanged;
+        
+        // Track page view
+        await SessionTracking.TrackPageViewAsync("session-dashboard");
+    }
+
+    private async Task LoadSessionData()
+    {
+        try
+        {
+            currentSession = await SessionTracking.GetCurrentSessionAsync();
+            analytics = await SessionTracking.GetSessionAnalyticsAsync();
+            sessionEvents = await SessionTracking.GetSessionEventsAsync();
+            
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await SessionTracking.TrackEventAsync(SessionEventType.Error, "session-dashboard", "load_failed", new { error = ex.Message });
+        }
+    }
+
+    private async Task LoadSessionEvents()
+    {
+        sessionEvents = await SessionTracking.GetSessionEventsAsync();
+        StateHasChanged();
+    }
+
+    private async Task RefreshSession()
+    {
+        await LoadSessionData();
+        await SessionTracking.TrackEventAsync(SessionEventType.Navigation, "session-dashboard", "session_refreshed");
+    }
+
+    private async Task ClearSearchHistory()
+    {
+        await SessionTracking.UpdateSessionAsync(session =>
+        {
+            session.SearchHistory.Clear();
+        });
+        
+        await LoadSessionData();
+        await SessionTracking.TrackEventAsync(SessionEventType.Navigation, "session-dashboard", "search_history_cleared");
+    }
+
+    private async Task ExportSessionData()
+    {
+        // In a real application, this would trigger a download
+        await SessionTracking.TrackEventAsync(SessionEventType.Download, "session-dashboard", "export_session_data");
+    }
+
+    private async Task ClearSession()
+    {
+        await SessionTracking.ClearSessionAsync();
+        await LoadSessionData();
+    }
+
+    private void OnStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(StateManagement.CurrentSession))
+        {
+            InvokeAsync(LoadSessionData);
+        }
+    }
+
+    private string FormatDuration(TimeSpan duration)
+    {
+        if (duration.TotalDays >= 1)
+            return $"{duration.Days}d {duration.Hours}h {duration.Minutes}m";
+        else if (duration.TotalHours >= 1)
+            return $"{duration.Hours}h {duration.Minutes}m";
+        else
+            return $"{duration.Minutes}m {duration.Seconds}s";
+    }
+
+    private string GetEventTypeBadgeClass(SessionEventType eventType)
+    {
+        return eventType switch
+        {
+            SessionEventType.PageView => "bg-primary",
+            SessionEventType.EventView => "bg-info",
+            SessionEventType.Search => "bg-warning",
+            SessionEventType.Registration => "bg-success",
+            SessionEventType.AddToCart => "bg-success",
+            SessionEventType.RemoveFromCart => "bg-danger",
+            SessionEventType.Error => "bg-danger",
+            SessionEventType.Login => "bg-success",
+            SessionEventType.Logout => "bg-secondary",
+            _ => "bg-secondary"
+        };
+    }
+
+    public void Dispose()
+    {
+        if (StateManagement != null)
+        {
+            StateManagement.PropertyChanged -= OnStateChanged;
+        }
+    }
+}

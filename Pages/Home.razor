@@ -1,0 +1,160 @@
+﻿@page "/"
+@using EventEase.Services
+@using EventEase.Models
+@inject IEventService EventService
+@inject NavigationManager Navigation
+
+<PageTitle>EventEase - Corporate & Social Event Management</PageTitle>
+
+<div class="hero-section mb-5">
+    <div class="jumbotron bg-primary text-white p-5 rounded">
+        <div class="container">
+            <h1 class="display-4">Welcome to EventEase</h1>
+            <p class="lead">Your premier destination for corporate and social event management. Discover, register, and attend exceptional events tailored for professionals and social enthusiasts.</p>
+            <hr class="my-4 border-white">
+            <p>From corporate conferences to elegant galas, we make every event memorable.</p>
+            <button class="btn btn-light btn-lg" @onclick="NavigateToEvents">
+                <i class="bi bi-calendar-event me-2"></i>Browse Events
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="row mb-5">
+        <div class="col-md-4 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <i class="bi bi-building display-4 text-primary mb-3"></i>
+                    <h5 class="card-title">Corporate Events</h5>
+                    <p class="card-text">Professional conferences, team building retreats, and networking opportunities designed to elevate your business.</p>
+                    <button class="btn btn-outline-primary" @onclick="() => NavigateToEventType(EventType.Corporate)">
+                        View Corporate Events
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <i class="bi bi-people display-4 text-success mb-3"></i>
+                    <h5 class="card-title">Social Events</h5>
+                    <p class="card-text">Elegant galas, weddings, and social gatherings that create lasting memories and meaningful connections.</p>
+                    <button class="btn btn-outline-success" @onclick="() => NavigateToEventType(EventType.Social)">
+                        View Social Events
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                    <i class="bi bi-mortarboard display-4 text-warning mb-3"></i>
+                    <h5 class="card-title">Workshops & Training</h5>
+                    <p class="card-text">Educational workshops and training sessions to enhance your skills and advance your career.</p>
+                    <button class="btn btn-outline-warning" @onclick="() => NavigateToEventType(EventType.Workshop)">
+                        View Workshops
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (featuredEvents != null && featuredEvents.Any())
+    {
+        <div class="row">
+            <div class="col-12 mb-4">
+                <h2 class="text-center mb-4">Featured Upcoming Events</h2>
+            </div>
+        </div>
+        <div class="row">
+            @foreach (var eventItem in featuredEvents.Take(3))
+            {
+                <div class="col-md-4 mb-4">
+                    <div class="card shadow-sm">
+                        <img src="@eventItem.ImageUrl" class="card-img-top" alt="@eventItem.Name" style="height: 200px; object-fit: cover;">
+                        <div class="card-body">
+                            <h5 class="card-title">@eventItem.Name</h5>
+                            <p class="card-text">
+                                <small class="text-muted">
+                                    <i class="bi bi-calendar me-1"></i>@eventItem.Date.ToString("MMM dd, yyyy")
+                                </small><br>
+                                <small class="text-muted">
+                                    <i class="bi bi-geo-alt me-1"></i>@eventItem.Location
+                                </small>
+                            </p>
+                            <p class="card-text">@(eventItem.Description.Length > 100 ? eventItem.Description.Substring(0, 100) + "..." : eventItem.Description)</p>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="badge bg-secondary">@eventItem.Type</span>
+                                <strong class="text-primary">$@eventItem.Price</strong>
+                            </div>
+                            <button class="btn btn-primary w-100 mt-2" @onclick="() => NavigateToEventDetail(eventItem.Id)">
+                                View Details
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<Event>? featuredEvents;
+
+    protected override async Task OnInitializedAsync()
+    {
+        featuredEvents = await EventService.GetEventsAsync();
+    }
+
+    private void NavigateToEvents()
+    {
+        try
+        {
+            Navigation.NavigateTo("/events");
+        }
+        catch (Exception)
+        {
+            // Fallback navigation
+            Navigation.NavigateTo("/", true);
+        }
+    }
+
+    private void NavigateToEventType(EventType eventType)
+    {
+        try
+        {
+            var route = eventType switch
+            {
+                EventType.Corporate => "/events/corporate",
+                EventType.Social => "/events/social",
+                _ => $"/events/{eventType.ToString().ToLower()}"
+            };
+            Navigation.NavigateTo(route);
+        }
+        catch (Exception)
+        {
+            // Fallback to all events
+            Navigation.NavigateTo("/events", true);
+        }
+    }
+
+    private void NavigateToEventDetail(int eventId)
+    {
+        try
+        {
+            if (eventId > 0)
+            {
+                Navigation.NavigateTo($"/events/details/{eventId}");
+            }
+            else
+            {
+                Navigation.NavigateTo("/events");
+            }
+        }
+        catch (Exception)
+        {
+            Navigation.NavigateTo("/events", true);
+        }
+    }
+}

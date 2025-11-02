@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: /sitemap.xml
+
+# Crawl-delay
+Crawl-delay: 1
+
+# Disallow private areas
+Disallow: /admin/
+Disallow: /api/
+Disallow: /_framework/
+Disallow: /obj/
+Disallow: /bin/
